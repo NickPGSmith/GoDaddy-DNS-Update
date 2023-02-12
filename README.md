@@ -26,6 +26,6 @@ Log onto the GoDaddy [Domain Manager](), and ensure that A and AAAA records exis
 
 A symlink can be added so that it is run hourly:
 
-`
+```
 ln -s /root/dnsupdate/dnsupdate /etc/cron.hourly/dnsupdate
-`
+```
