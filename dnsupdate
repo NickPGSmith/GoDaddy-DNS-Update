@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+#
+# Check public IP address and update GoDaddy record (which must already exist)
+# Create GoDaddy API production keys: https://developer.godaddy.com/keys/
+#
+# Module Requirements (pip3 install <package>):
+#   pif
+#   godaddypy
+#
+# V0.1      2017-02-17	First Version
+# V0.2      2017-02-19	Added config file and ipv4/ipv6 options
+# V0.3      2018-05-17	
+# V0.4      2019-03-16	Added send mail on change
+# V0.5      2019-03-30	Changed mail message
+# V0.6      2019-05-30  Moved to f-strings, fixed email_from
+# V0.7      2020-08-28  Added delay before sending email
+# V0.8      2021-03-12  Cleaned up after linting
+#
+
+
+import configparser
+import ipaddress
+import logging
+import os
+import smtplib
+import time
+
+import godaddypy as gd
+import pif
+
+
+logfile = os.path.realpath(__file__) + '.log'
+logging.basicConfig(filename = logfile, format='%(asctime)s %(module)s: %(levelname)s %(message)s', level=logging.INFO)
+logging.getLogger('requests').setLevel(logging.WARNING)
+
+def main():
+    logging.info(f'Starting')
+    conf = configparser.ConfigParser()
+    conf.read(os.path.realpath(__file__) + '.conf')
+    section = 'Main'
+    domain = conf[section]['domain']
+    if 'email_to' in conf[section]:
+        email_to = conf[section]['email_to']
+    else:
+        email_to = None
+    if 'email_from' in conf[section]:
+        email_from = conf[section]['email_from']
+    else:
+        email_from = 'no-reply@localhost'
+    
+    acct = gd.Account(api_key=conf[section]['key'], api_secret=conf[section]['secret'])
+    client = gd.Client(acct)
+
+    for record_type, ip_section in [('A', 'ipv4'), ('AAAA', 'ipv6')]:
+        if ip_section not in conf:
+            logging.info(f'Section {ip_section} not found')
+            continue
+
+        # Obtain public IP
+        service = conf[ip_section]['service']
+        try:
+            ip = pif.get_public_ip(service)
+        except:
+            msg = f'Failed to get public {ip_section} from {service}'
+            print(msg)
+            logging.error(msg)
+            continue
+        logging.info(f'Public {ip_section} from {service}: {ip}')
+        
+        # Get current GoDaddy record
+        try:
+            records = client.get_records(domain, record_type=record_type)
+            record_ip = records[0]['data']
+        except:
+            logging.error(f'Failed to get record for domain {domain}')
+            continue
+        logging.info(f'Current GoDaddy {record_type} record: {record_ip}')
+
+        if ip != record_ip:
+            # Update GoDaddy record
+            logging.info(f'Updating GoDaddy {record_type} record')
+            try:
+                ret = client.update_record_ip(ip, domain, name = '@', record_type = record_type)
+            except:
+                logging.error(f'Failed to update IP record; name: @, type: {record_type}')
+                continue
+            if not ret:
+                logging.error(f'Failed to update GoDaddy {record_type} record')
+                continue
+
+            # Allow some time for DNS to be updated (avoid SPF failures)
+            logging.info('Sleeping before sending email')
+            time.sleep(5*60)
+
+            # Send email notification
+            if email_to:
+                logging.info(f'Sending email')
+                smtp = smtplib.SMTP('localhost')
+                msg = (f'From: {email_from}\r\nTo: {email_to}\r\nSubject: IP Address Mismatch Notification\r\n\r\n'
+                       f'GoDaddy DNS record for {domain} did not match current IP: {ip}')
+                smtp.sendmail(email_from, email_to, msg)
+                smtp.quit()
+    logging.info('Finished')
+
+
+if __name__ == '__main__':
+    exit(main())
