@@ -1,14 +1,14 @@
 # GoDaddy-DNS-Update
 Simple python code that can be used to automatically update GoDaddy DNS A/AAAA records
 
-# Requirements
+## Requirements
 
 - Python 3
 - Python module: [pif](https://pypi.python.org/pypi/pif/0.8.2)
 - Python module: [godaddypy](https://pypi.python.org/pypi/GoDaddyPy)
 - Access to ident.me service
 
-# Installation
+## Installation
 
 The two files should be installed in the same directory (such as /root/dnsupdate):
 
