@@ -15,6 +15,7 @@
 # V0.6      2019-05-30  Moved to f-strings, fixed email_from
 # V0.7      2020-08-28  Added delay before sending email
 # V0.8      2021-03-12  Cleaned up after linting
+# V0.9      2023-03-18  Read delay from conf file
 #
 
 
@@ -34,7 +35,7 @@ logging.basicConfig(filename = logfile, format='%(asctime)s %(module)s: %(leveln
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 def main():
-    logging.info(f'Starting')
+    logging.info('Starting')
     conf = configparser.ConfigParser()
     conf.read(os.path.realpath(__file__) + '.conf')
     section = 'Main'
@@ -47,6 +48,8 @@ def main():
         email_from = conf[section]['email_from']
     else:
         email_from = 'no-reply@localhost'
+    if 'delay' in conf[section]['delay']:
+        delay = abs(int(delay))
     
     acct = gd.Account(api_key=conf[section]['key'], api_secret=conf[section]['secret'])
     client = gd.Client(acct)
@@ -90,7 +93,7 @@ def main():
 
             # Allow some time for DNS to be updated (avoid SPF failures)
             logging.info('Sleeping before sending email')
-            time.sleep(5*60)
+            time.sleep(delay)
 
             # Send email notification
             if email_to:
